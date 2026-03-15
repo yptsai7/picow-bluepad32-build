@@ -30,12 +30,11 @@ jobs:
 
       - name: Build Pico W Firmware
         run: |
-          # 定義模組目錄的絕對路徑
-          BP32_DIR="${{ github.workspace }}/bluepad32/src/main/api/micropython"
+          # 強制掃描真實路徑
+          BP32_DIR=$(find ${{ github.workspace }} -type d -path "*/bluepad32/src/main/api/micropython" | head -n 1)
+          echo "🎯 實際偵測到的模組路徑: $BP32_DIR"
           
           cd micropython/ports/rp2
-          
-          # 執行編譯，注意 USER_C_MODULES 指向的是 DIR
           make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_DIR"
 
       - name: Upload Artifact
