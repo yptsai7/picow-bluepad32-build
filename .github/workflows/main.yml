@@ -30,36 +30,38 @@ jobs:
           mkdir -p ${{ github.workspace }}/custom_mod
           cd ${{ github.workspace }}/custom_mod
           
-          # 1. 最簡化且相容性最高的 micropython.cmake
+          # 1. 使用底層 CMake 指令，繞過 micropython_add_user_cmodule
           cat <<EOF > micropython.cmake
-          micropython_add_user_cmodule(\${CMAKE_CURRENT_LIST_DIR} modbluepad32.c bluepad32)
+          add_library(usermod_bluepad32 INTERFACE)
+          target_sources(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR}/modbluepad32.c)
+          target_include_directories(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR})
+          target_link_libraries(usermod INTERFACE usermod_bluepad32)
           EOF
 
-          # 2. 採用「防彈語法」的 modbluepad32.c
-          # 注意：為了通過 QSTR 掃描，這份代碼嚴格遵守 MicroPython 的宏定義規範
+          # 2. 採用最嚴謹語法的 modbluepad32.c
           cat <<EOF > modbluepad32.c
           #include "py/runtime.h"
           #include "py/obj.h"
 
-          // 基礎測試函數
+          // 測試函數
           STATIC mp_obj_t bluepad32_hello(void) {
-              return mp_obj_new_str("Bluepad32 Ready", 15);
+              return mp_obj_new_str("Success", 7);
           }
           MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
 
-          // 模組字典
+          // 字典表
           STATIC const mp_rom_map_elem_t bluepad32_locals_dict_table[] = {
               { MP_ROM_QSTR(MP_QSTR_hello), MP_ROM_PTR(&bluepad32_hello_obj) },
           };
           STATIC MP_DEFINE_CONST_DICT(bluepad32_locals_dict, bluepad32_locals_dict_table);
 
-          // 定義模組結構體
+          // 模組定義
           const mp_obj_module_t bluepad32_user_cmodule = {
               .base = { &mp_type_module },
               .globals = (mp_obj_dict_t *)&bluepad32_locals_dict,
           };
 
-          // 註冊模組到 MicroPython
+          // 註冊
           MP_REGISTER_MODULE(MP_QSTR_bluepad32, bluepad32_user_cmodule);
           EOF
 
@@ -69,9 +71,10 @@ jobs:
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 執行編譯，我們這次加上 -j$(nproc) 加快速度
+          # 清除緩存並編譯
+          rm -rf build-RPI_PICO_W
           make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod
-          
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
