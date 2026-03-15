@@ -30,12 +30,27 @@ jobs:
 
       - name: Build Pico W Firmware
         run: |
-          # 強制掃描真實路徑
-          BP32_DIR=$(find ${{ github.workspace }} -type d -path "*/bluepad32/src/main/api/micropython" | head -n 1)
-          echo "🎯 實際偵測到的模組路徑: $BP32_DIR"
+          # 1. 取得絕對路徑
+          BP32_DIR="${{ github.workspace }}/bluepad32/src/main/api/micropython"
+          echo "🎯 Bluepad32 Module Directory: $BP32_DIR"
           
+          # 2. 驗證該目錄下是否有必要的編譯文件
+          if [ ! -f "$BP32_DIR/micropython.cmake" ]; then
+            echo "❌ Error: micropython.cmake not found in $BP32_DIR"
+            exit 1
+          fi
+
           cd micropython/ports/rp2
-          make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_DIR"
+          
+          # 3. 核心修正：使用 cmake 指令明確注入模組，然後再進行 make
+          # 這是確保 C 模組被正確連結的最穩健方法
+          export USER_C_MODULES=$BP32_DIR
+          
+          # 先清理舊的 build，確保全新編譯
+          rm -rf build-RPI_PICO_W
+          
+          # 執行編譯
+          make BOARD=RPI_PICO_W USER_C_MODULES=$USER_C_MODULES
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
