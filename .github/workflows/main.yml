@@ -30,43 +30,44 @@ jobs:
           mkdir -p ${{ github.workspace }}/custom_mod
           cd ${{ github.workspace }}/custom_mod
           
-          # 1. 修正後的 micropython.cmake 語法
-          # 使用新的命名規範：${CMAKE_CURRENT_LIST_DIR} 指向當前目錄
+          # 1. 修正後的 micropython.cmake
           cat <<EOF > micropython.cmake
-          # 定義模組
           add_library(usermod_bluepad32 INTERFACE)
-
-          # 加入源檔案
           target_sources(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR}/modbluepad32.c)
-
-          # 設定包含目錄
           target_include_directories(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR})
-
-          # 連結至 MicroPython 核心 (usermod 是一個特殊的 target)
           target_link_libraries(usermod INTERFACE usermod_bluepad32)
           EOF
 
-          # 2. modbluepad32.c (維持基礎架構，確保能成功編譯)
+          # 2. 徹底修正語法錯誤的 modbluepad32.c
+          # 修正重點：移除巨集前的 STATIC，修正 MP_REGISTER_MODULE 語法
           cat <<EOF > modbluepad32.c
-          #include "py/runtime.h"
+          #include <stdint.h>
           #include "py/obj.h"
+          #include "py/runtime.h"
 
+          // 測試函數實作
           STATIC mp_obj_t bluepad32_hello(void) {
-              return mp_obj_new_str("Bluepad32 Built-in!", 19);
+              return mp_obj_new_str("Bluepad32 Ready", 15);
           }
-          STATIC MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
+          // 注意：巨集前面不需要加 STATIC，它內部已經包含了存儲類別定義
+          MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
 
+          // 模組全域表
           STATIC const mp_rom_map_elem_t bluepad32_module_globals_table[] = {
               { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_bluepad32) },
               { MP_ROM_QSTR(MP_QSTR_hello), MP_ROM_PTR(&bluepad32_hello_obj) },
           };
-          STATIC MP_DEFINE_CONST_DICT(bluepad32_module_globals, bluepad32_module_globals_table);
+          // 注意：巨集前面不需要加 STATIC
+          MP_DEFINE_CONST_DICT(bluepad32_module_globals, bluepad32_module_globals_table);
 
+          // 定義模組結構
           const mp_obj_module_t bluepad32_user_cmodule = {
               .base = { &mp_type_module },
               .globals = (mp_obj_dict_t *)&bluepad32_module_globals,
           };
 
+          // 註冊模組
+          // 在較新版本的 MicroPython 中，這是正確的註冊方式
           MP_REGISTER_MODULE(MP_QSTR_bluepad32, bluepad32_user_cmodule);
           EOF
 
@@ -76,7 +77,7 @@ jobs:
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 執行編譯，再次確認 BOARD 名稱正確
+          # 確保編譯器能抓到我們手寫的 custom_mod
           make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod
 
       - name: Upload Artifact
