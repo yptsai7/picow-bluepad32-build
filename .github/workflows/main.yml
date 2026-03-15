@@ -1,7 +1,7 @@
 name: Build MicroPython Bluepad32 for Pico W
 
 on:
-  workflow_dispatch: # 允許手動點擊按鈕執行
+  workflow_dispatch:
 
 jobs:
   build:
@@ -30,16 +30,16 @@ jobs:
 
       - name: Build Pico W Firmware
         run: |
-          # 進入 RP2 移植層目錄
+          # 定義模組目錄的絕對路徑
+          BP32_DIR="${{ github.workspace }}/bluepad32/src/main/api/micropython"
+          
           cd micropython/ports/rp2
           
-          # 使用絕對路徑指定 USER_C_MODULES
-          # BOARD 名稱已更新為 RPI_PICO_W 以符合新版韌體規範
-          make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/bluepad32/src/main/api/micropython/micropython.cmake
+          # 執行編譯，注意 USER_C_MODULES 指向的是 DIR
+          make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_DIR"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: micropython-bluepad32-picow
-          # 確保路徑與編譯出的板子名稱一致
           path: micropython/ports/rp2/build-RPI_PICO_W/firmware.uf2
