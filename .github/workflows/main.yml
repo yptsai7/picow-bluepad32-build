@@ -19,33 +19,46 @@ jobs:
           submodules: true
           path: micropython
 
-      - name: Checkout Bluepad32 MicroPython Module
+      - name: Checkout Bluepad32 Main
         uses: actions/checkout@v4
         with:
-          # 關鍵：這是 2026 年存放 MicroPython C 模組的正確倉庫
-          repository: ricardoquesada/bluepad32-py
-          path: bluepad32-py
+          repository: ricardoquesada/bluepad32
+          submodules: true
+          path: bluepad32
 
       - name: Build mpy-cross
         run: make -C micropython/mpy-cross
 
-      - name: Build Pico W Firmware
+      - name: Inject Bluepad32 Module and Build
         run: |
-          # 1. 搜尋並確認模組路徑
-          CMAKE_PATH=$(find ${{ github.workspace }}/bluepad32-py -name "micropython.cmake" | head -n 1)
+          # 1. 既然找不到 micropython.cmake，我們直接在 workflow 中「建立」它
+          # 這是最高級的技巧：手動建立連結層
+          MOD_DIR="${{ github.workspace }}/micropython/examples/usercmodule/bluepad32"
+          mkdir -p $MOD_DIR
           
-          if [ -z "$CMAKE_PATH" ]; then
-            echo "❌ 依然找不到 micropython.cmake！列出下載內容："
-            ls -R ${{ github.workspace }}/bluepad32-py
+          # 2. 從 bluepad32 主倉庫中將相關 C 檔案複製過來 (基於 src/components/bluepad32)
+          # 這裡我們直接使用 Ricardo 預留在主倉庫中的接口實作
+          cp -r ${{ github.workspace }}/bluepad32/src/components/bluepad32/* $MOD_DIR/
+          
+          # 3. 搜尋真正的接口檔案
+          # 如果還是找不到，我們就使用 Ricardo 提供的預編譯指令碼
+          cd micropython/ports/rp2
+          
+          # 最終嘗試：使用主倉庫中的 pico_w 範例路徑
+          BP32_PATH="${{ github.workspace }}/bluepad32/examples/pico_w"
+          
+          # 執行編譯
+          make BOARD=RPI_PICO_W USER_C_MODULES="${{ github.workspace }}/bluepad32/src/main/api/micropython" || \
+          make BOARD=RPI_PICO_W USER_C_MODULES="${{ github.workspace }}/bluepad32/src/platforms/micropython" || \
+          echo "⚠️ 自動路徑失敗，嘗試全盤搜尋後強制執行"
+          
+          FINAL_PATH=$(find ${{ github.workspace }}/bluepad32 -name "micropython.cmake" -printf '%h\n' | head -n 1)
+          if [ -n "$FINAL_PATH" ]; then
+            make BOARD=RPI_PICO_W USER_C_MODULES="$FINAL_PATH"
+          else
+            echo "❌ 徹底找不到接口檔案"
             exit 1
           fi
-          
-          BP32_MOD_DIR=$(dirname "$CMAKE_PATH")
-          echo "✅ 成功鎖定模組目錄：$BP32_MOD_DIR"
-
-          # 2. 進入編譯目錄並連結
-          cd micropython/ports/rp2
-          make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_MOD_DIR"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
