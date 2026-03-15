@@ -30,43 +30,37 @@ jobs:
           mkdir -p ${{ github.workspace }}/custom_mod
           cd ${{ github.workspace }}/custom_mod
           
-          # 1. 建立 micropython.cmake
+          # 1. 最簡化且相容性最高的 micropython.cmake
           cat <<EOF > micropython.cmake
-          add_library(usermod_bluepad32 INTERFACE)
-          target_sources(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR}/modbluepad32.c)
-          target_include_directories(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR})
-          target_link_libraries(usermod INTERFACE usermod_bluepad32)
+          micropython_add_user_cmodule(\${CMAKE_CURRENT_LIST_DIR} modbluepad32.c bluepad32)
           EOF
 
-          # 2. 經過 Log 修正後的 modbluepad32.c
+          # 2. 採用「防彈語法」的 modbluepad32.c
+          # 注意：為了通過 QSTR 掃描，這份代碼嚴格遵守 MicroPython 的宏定義規範
           cat <<EOF > modbluepad32.c
-          #include <stdint.h>
-          #include "py/obj.h"
           #include "py/runtime.h"
+          #include "py/obj.h"
 
-          // 1. 先宣告函數實體
+          // 基礎測試函數
           STATIC mp_obj_t bluepad32_hello(void) {
               return mp_obj_new_str("Bluepad32 Ready", 15);
           }
+          MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
 
-          // 2. 使用巨集定義函數物件 (注意：這裡需要加分號，因為它展開為變數定義)
-          STATIC MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
-
-          // 3. 定義模組字典
-          STATIC const mp_rom_map_elem_t bluepad32_module_globals_table[] = {
-              { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_bluepad32) },
+          // 模組字典
+          STATIC const mp_rom_map_elem_t bluepad32_locals_dict_table[] = {
               { MP_ROM_QSTR(MP_QSTR_hello), MP_ROM_PTR(&bluepad32_hello_obj) },
           };
-          STATIC MP_DEFINE_CONST_DICT(bluepad32_module_globals, bluepad32_module_globals_table);
+          STATIC MP_DEFINE_CONST_DICT(bluepad32_locals_dict, bluepad32_locals_dict_table);
 
-          // 4. 定義模組結構體
+          // 定義模組結構體
           const mp_obj_module_t bluepad32_user_cmodule = {
               .base = { &mp_type_module },
-              .globals = (mp_obj_dict_t *)&bluepad32_module_globals,
+              .globals = (mp_obj_dict_t *)&bluepad32_locals_dict,
           };
 
-          // 5. 註冊模組 (巨集後不加分號)
-          MP_REGISTER_MODULE(MP_QSTR_bluepad32, bluepad32_user_cmodule)
+          // 註冊模組到 MicroPython
+          MP_REGISTER_MODULE(MP_QSTR_bluepad32, bluepad32_user_cmodule);
           EOF
 
       - name: Build mpy-cross
@@ -75,8 +69,8 @@ jobs:
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 加上 V=1 方便萬一失敗時查看詳細編譯指令
-          make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod V=1
+          # 執行編譯，我們這次加上 -j$(nproc) 加快速度
+          make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
