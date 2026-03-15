@@ -30,21 +30,29 @@ jobs:
           mkdir -p ${{ github.workspace }}/custom_mod
           cd ${{ github.workspace }}/custom_mod
           
-          # 1. 現場寫入 micropython.cmake
+          # 1. 修正後的 micropython.cmake 語法
+          # 使用新的命名規範：${CMAKE_CURRENT_LIST_DIR} 指向當前目錄
           cat <<EOF > micropython.cmake
-          micropython_add_user_cmodule(\${CMAKE_CURRENT_LIST_DIR} modbluepad32.c bluepad32)
+          # 定義模組
+          add_library(usermod_bluepad32 INTERFACE)
+
+          # 加入源檔案
+          target_sources(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR}/modbluepad32.c)
+
+          # 設定包含目錄
           target_include_directories(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR})
-          target_link_libraries(usermod_bluepad32 INTERFACE pico_btstack)
+
+          # 連結至 MicroPython 核心 (usermod 是一個特殊的 target)
+          target_link_libraries(usermod INTERFACE usermod_bluepad32)
           EOF
 
-          # 2. 現場寫入基礎接口代碼 modbluepad32.c
-          # 這是一個簡化的接口，確保你能 import 並看到 bluepad32 模組
+          # 2. modbluepad32.c (維持基礎架構，確保能成功編譯)
           cat <<EOF > modbluepad32.c
           #include "py/runtime.h"
           #include "py/obj.h"
 
           STATIC mp_obj_t bluepad32_hello(void) {
-              return mp_obj_new_str("Bluepad32 Ready!", 16);
+              return mp_obj_new_str("Bluepad32 Built-in!", 19);
           }
           STATIC MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
 
@@ -68,7 +76,7 @@ jobs:
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 強制指向我們現場建立的 custom_mod
+          # 執行編譯，再次確認 BOARD 名稱正確
           make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod
 
       - name: Upload Artifact
