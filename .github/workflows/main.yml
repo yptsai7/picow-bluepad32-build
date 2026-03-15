@@ -38,29 +38,29 @@ jobs:
           target_link_libraries(usermod INTERFACE usermod_bluepad32)
           EOF
 
-          # 2. 徹底修正語法錯誤的 modbluepad32.c
-          # 修正重點：移除巨集前的 STATIC，確保 QSTR 宏定義正確
+          # 2. 嚴格符合 MicroPython 語法的 modbluepad32.c
+          # 注意：巨集定義後方不可有分號
           cat <<EOF > modbluepad32.c
           #include <stdint.h>
           #include "py/obj.h"
           #include "py/runtime.h"
 
-          // 測試函數實作
+          // 測試函數
           STATIC mp_obj_t bluepad32_hello(void) {
               return mp_obj_new_str("Bluepad32 Ready", 15);
           }
-          // 注意：巨集前面絕對不能加 STATIC
-          MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
+          // 關鍵修正：MP_DEFINE_CONST_FUN_OBJ_0 結尾不可有分號
+          MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello)
 
-          // 模組全域表
+          // 模組字典
           STATIC const mp_rom_map_elem_t bluepad32_module_globals_table[] = {
               { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_bluepad32) },
               { MP_ROM_QSTR(MP_QSTR_hello), MP_ROM_PTR(&bluepad32_hello_obj) },
           };
-          // 注意：巨集前面絕對不能加 STATIC
-          MP_DEFINE_CONST_DICT(bluepad32_module_globals, bluepad32_module_globals_table);
+          // 關鍵修正：MP_DEFINE_CONST_DICT 結尾不可有分號
+          MP_DEFINE_CONST_DICT(bluepad32_module_globals, bluepad32_module_globals_table)
 
-          // 定義模組結構
+          // 模組結構體
           const mp_obj_module_t bluepad32_user_cmodule = {
               .base = { &mp_type_module },
               .globals = (mp_obj_dict_t *)&bluepad32_module_globals,
@@ -76,9 +76,9 @@ jobs:
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 確保編譯器能抓到我們手寫的 custom_mod
+          # 確保編譯器使用我們手寫的模組
           make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod
-
+          
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
