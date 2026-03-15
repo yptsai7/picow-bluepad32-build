@@ -23,27 +23,37 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ricardoquesada/bluepad32
-          # 我們回歸主專案，它是存在的
           path: bluepad32
+
+      - name: Find C Module Path
+        id: find_path
+        run: |
+          echo "🔍 正在全盤掃描 micropython.cmake..."
+          # 尋找所有包含 micropython.cmake 的路徑
+          SEARCH_RESULT=$(find ${{ github.workspace }}/bluepad32 -name "micropython.cmake")
+          
+          if [ -z "$SEARCH_RESULT" ]; then
+            echo "❌ 找不到 micropython.cmake！列出 bluepad32 目錄下的一級子目錄："
+            ls -F ${{ github.workspace }}/bluepad32
+            echo "--- 深度目錄掃描 ---"
+            find ${{ github.workspace }}/bluepad32 -maxdepth 3 -type d
+            exit 1
+          fi
+          
+          # 取第一個找到的路徑，並轉換為目錄路徑
+          FINAL_DIR=$(dirname "$SEARCH_RESULT")
+          echo "✅ 找到路徑：$FINAL_DIR"
+          echo "module_dir=$FINAL_DIR" >> $GITHUB_OUTPUT
 
       - name: Build mpy-cross
         run: make -C micropython/mpy-cross
 
       - name: Build Pico W Firmware
         run: |
-          # 1. 這次我們直接指定 Bluepad32 裡面的 MicroPython 接口目錄
-          # 這是 Bluepad32 專案中負責對接 MicroPython 的 C 程式碼位置
-          BP32_MOD_DIR="${{ github.workspace }}/bluepad32/src/main/api/micropython"
-          
-          echo "✅ 正在嘗試連結模組目錄：$BP32_MOD_DIR"
-          
-          # 檢查目錄內容，確保我們沒找錯 (這步很重要，失敗會在這裡看到結構)
-          ls -F $BP32_MOD_DIR
-
+          BP32_MOD_DIR="${{ steps.find_path.outputs.module_dir }}"
           cd micropython/ports/rp2
           
-          # 2. 執行編譯
-          # 注意：USER_C_MODULES 必須指向包含 micropython.cmake 的目錄
+          # 正式執行編譯
           make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_MOD_DIR"
 
       - name: Upload Artifact
