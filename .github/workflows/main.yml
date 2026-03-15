@@ -19,41 +19,32 @@ jobs:
           submodules: true
           path: micropython
 
-      - name: Checkout Bluepad32
+      - name: Checkout Bluepad32 MicroPython Module
         uses: actions/checkout@v4
         with:
-          repository: ricardoquesada/bluepad32
-          path: bluepad32
-
-      - name: Find C Module Path
-        id: find_path
-        run: |
-          echo "🔍 正在全盤掃描 micropython.cmake..."
-          # 尋找所有包含 micropython.cmake 的路徑
-          SEARCH_RESULT=$(find ${{ github.workspace }}/bluepad32 -name "micropython.cmake")
-          
-          if [ -z "$SEARCH_RESULT" ]; then
-            echo "❌ 找不到 micropython.cmake！列出 bluepad32 目錄下的一級子目錄："
-            ls -F ${{ github.workspace }}/bluepad32
-            echo "--- 深度目錄掃描 ---"
-            find ${{ github.workspace }}/bluepad32 -maxdepth 3 -type d
-            exit 1
-          fi
-          
-          # 取第一個找到的路徑，並轉換為目錄路徑
-          FINAL_DIR=$(dirname "$SEARCH_RESULT")
-          echo "✅ 找到路徑：$FINAL_DIR"
-          echo "module_dir=$FINAL_DIR" >> $GITHUB_OUTPUT
+          # 關鍵：這是 2026 年存放 MicroPython C 模組的正確倉庫
+          repository: ricardoquesada/bluepad32-py
+          path: bluepad32-py
 
       - name: Build mpy-cross
         run: make -C micropython/mpy-cross
 
       - name: Build Pico W Firmware
         run: |
-          BP32_MOD_DIR="${{ steps.find_path.outputs.module_dir }}"
-          cd micropython/ports/rp2
+          # 1. 搜尋並確認模組路徑
+          CMAKE_PATH=$(find ${{ github.workspace }}/bluepad32-py -name "micropython.cmake" | head -n 1)
           
-          # 正式執行編譯
+          if [ -z "$CMAKE_PATH" ]; then
+            echo "❌ 依然找不到 micropython.cmake！列出下載內容："
+            ls -R ${{ github.workspace }}/bluepad32-py
+            exit 1
+          fi
+          
+          BP32_MOD_DIR=$(dirname "$CMAKE_PATH")
+          echo "✅ 成功鎖定模組目錄：$BP32_MOD_DIR"
+
+          # 2. 進入編譯目錄並連結
+          cd micropython/ports/rp2
           make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_MOD_DIR"
 
       - name: Upload Artifact
