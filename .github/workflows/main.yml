@@ -30,7 +30,7 @@ jobs:
           mkdir -p ${{ github.workspace }}/custom_mod
           cd ${{ github.workspace }}/custom_mod
           
-          # 1. 建立最穩定的連結定義
+          # 1. 建立 micropython.cmake
           cat <<EOF > micropython.cmake
           add_library(usermod_bluepad32 INTERFACE)
           target_sources(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR}/modbluepad32.c)
@@ -38,7 +38,8 @@ jobs:
           target_link_libraries(usermod INTERFACE usermod_bluepad32)
           EOF
 
-          # 2. 徹底修正語法錯誤的 modbluepad32.c
+          # 2. 採用「防彈語法」的 modbluepad32.c
+          # 重點修正：移除巨集前的 STATIC，並確保分號正確
           cat <<EOF > modbluepad32.c
           #include "py/runtime.h"
           #include "py/obj.h"
@@ -47,23 +48,23 @@ jobs:
           STATIC mp_obj_t bluepad32_hello(void) {
               return mp_obj_new_str("Ready", 5);
           }
-          // 重點：巨集前面不要加 STATIC
+          // 修正：這裡絕對不能有 STATIC，且結尾要有分號
           MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
 
-          // 模組字典表
+          // 字典表
           STATIC const mp_rom_map_elem_t bluepad32_locals_dict_table[] = {
               { MP_ROM_QSTR(MP_QSTR_hello), MP_ROM_PTR(&bluepad32_hello_obj) },
           };
-          // 重點：巨集前面不要加 STATIC
+          // 修正：這裡絕對不能有 STATIC，且結尾要有分號
           MP_DEFINE_CONST_DICT(bluepad32_locals_dict, bluepad32_locals_dict_table);
 
-          // 模組結構定義
+          // 模組定義
           const mp_obj_module_t bluepad32_user_cmodule = {
               .base = { &mp_type_module },
               .globals = (mp_obj_dict_t *)&bluepad32_locals_dict,
           };
 
-          // 註冊模組
+          // 註冊
           MP_REGISTER_MODULE(MP_QSTR_bluepad32, bluepad32_user_cmodule);
           EOF
 
@@ -73,7 +74,7 @@ jobs:
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 清除舊的編譯緩存，避免錯誤殘留
+          # 徹底清除先前的錯誤快取
           rm -rf build-RPI_PICO_W
           make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod
           
