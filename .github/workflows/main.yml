@@ -19,30 +19,32 @@ jobs:
           submodules: true
           path: micropython
 
-      - name: Checkout Bluepad32 MicroPython Module
+      - name: Checkout Bluepad32
         uses: actions/checkout@v4
         with:
-          # 注意：這是正確的專案倉庫，包含 C 模組接口
-          repository: ricardoquesada/bluepad32-micropython
-          path: bluepad32-mpy
+          repository: ricardoquesada/bluepad32
+          # 我們回歸主專案，它是存在的
+          path: bluepad32
 
       - name: Build mpy-cross
         run: make -C micropython/mpy-cross
 
       - name: Build Pico W Firmware
         run: |
-          # 1. 搜尋正確的模組路徑
-          CMAKE_PATH=$(find ${{ github.workspace }}/bluepad32-mpy -name "micropython.cmake" | head -n 1)
-          BP32_MOD_DIR=$(dirname "$CMAKE_PATH")
+          # 1. 這次我們直接指定 Bluepad32 裡面的 MicroPython 接口目錄
+          # 這是 Bluepad32 專案中負責對接 MicroPython 的 C 程式碼位置
+          BP32_MOD_DIR="${{ github.workspace }}/bluepad32/src/main/api/micropython"
           
-          echo "✅ 成功找到模組目錄：$BP32_MOD_DIR"
+          echo "✅ 正在嘗試連結模組目錄：$BP32_MOD_DIR"
+          
+          # 檢查目錄內容，確保我們沒找錯 (這步很重要，失敗會在這裡看到結構)
+          ls -F $BP32_MOD_DIR
 
-          # 2. 進入編譯目錄
           cd micropython/ports/rp2
           
-          # 3. 執行編譯
-          # 這裡我們加上 V=1 來觀察是否有 "Including User C Module" 字樣
-          make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_MOD_DIR" V=1
+          # 2. 執行編譯
+          # 注意：USER_C_MODULES 必須指向包含 micropython.cmake 的目錄
+          make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_MOD_DIR"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
