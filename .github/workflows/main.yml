@@ -1,7 +1,7 @@
 name: Build MicroPython Bluepad32 for Pico W
 
 on:
-  workflow_dispatch: # 允許手動點擊按鈕執行
+  workflow_dispatch:
 
 jobs:
   build:
@@ -10,7 +10,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi build-essential python3 libnewlib-arm-none-eabi
+          sudo apt-get install -y gcc-arm-none-eabi build-essential python3 libnewlib-arm-none-eabi cmake
 
       - name: Checkout MicroPython
         uses: actions/checkout@v4
@@ -28,21 +28,16 @@ jobs:
       - name: Build mpy-cross
         run: make -C micropython/mpy-cross
 
-      - name: Prepare Bluepad32 Module
-        run: |
-          # 建立連結，讓 MicroPython 找得到 Bluepad32 的 C 模組
-          cd micropython/ports/rp2
-          # 這裡指定 Bluepad32 提供的 MicroPython API 路徑
-          echo "USER_C_MODULES = $(pwd)/../../../bluepad32/src/main/api/micropython" >> configboard.mk
-
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 使用 BOARD=PICO_W 並掛載外部 C 模組
-          make BOARD=PICO_W USER_C_MODULES=../../../bluepad32/src/main/api/micropython/micropython.cmake
+          # 修正重點 1: 使用新版命名 RPI_PICO_W
+          # 修正重點 2: 直接在 make 指令中傳入路徑
+          make BOARD=RPI_PICO_W USER_C_MODULES=../../../bluepad32/src/main/api/micropython/micropython.cmake
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: micropython-bluepad32-picow
-          path: micropython/ports/rp2/build-PICO_W/firmware.uf2
+          # 修正重點 3: 路徑也會隨板子名稱改變
+          path: micropython/ports/rp2/build-RPI_PICO_W/firmware.uf2
