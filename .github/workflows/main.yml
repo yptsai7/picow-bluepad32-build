@@ -30,7 +30,7 @@ jobs:
           mkdir -p ${{ github.workspace }}/custom_mod
           cd ${{ github.workspace }}/custom_mod
           
-          # 1. 建立 micropython.cmake
+          # 1. 簡化 micropython.cmake
           cat <<EOF > micropython.cmake
           add_library(usermod_bluepad32 INTERFACE)
           target_sources(usermod_bluepad32 INTERFACE \${CMAKE_CURRENT_LIST_DIR}/modbluepad32.c)
@@ -38,33 +38,32 @@ jobs:
           target_link_libraries(usermod INTERFACE usermod_bluepad32)
           EOF
 
-          # 2. 採用「防彈語法」的 modbluepad32.c
-          # 重點修正：移除巨集前的 STATIC，並確保分號正確
+          # 2. 徹底拆解、無分號衝突的 modbluepad32.c
           cat <<EOF > modbluepad32.c
-          #include "py/runtime.h"
           #include "py/obj.h"
+          #include "py/runtime.h"
 
-          // 測試函數
+          // 定義一個簡單的函數
           STATIC mp_obj_t bluepad32_hello(void) {
-              return mp_obj_new_str("Ready", 5);
+              return mp_obj_new_str("Success", 7);
           }
-          // 修正：這裡絕對不能有 STATIC，且結尾要有分號
+          // 巨集定義函數對象 - 這裡我們嘗試不加 STATIC，並加上明確的分號
           MP_DEFINE_CONST_FUN_OBJ_0(bluepad32_hello_obj, bluepad32_hello);
 
-          // 字典表
+          // 定義 locals 字典
           STATIC const mp_rom_map_elem_t bluepad32_locals_dict_table[] = {
               { MP_ROM_QSTR(MP_QSTR_hello), MP_ROM_PTR(&bluepad32_hello_obj) },
           };
-          // 修正：這裡絕對不能有 STATIC，且結尾要有分號
+          // 巨集定義字典
           MP_DEFINE_CONST_DICT(bluepad32_locals_dict, bluepad32_locals_dict_table);
 
-          // 模組定義
+          // 定義模組物件
           const mp_obj_module_t bluepad32_user_cmodule = {
               .base = { &mp_type_module },
               .globals = (mp_obj_dict_t *)&bluepad32_locals_dict,
           };
 
-          // 註冊
+          // 註冊模組：新版語法，確保沒有多餘分號
           MP_REGISTER_MODULE(MP_QSTR_bluepad32, bluepad32_user_cmodule);
           EOF
 
@@ -74,7 +73,7 @@ jobs:
       - name: Build Pico W Firmware
         run: |
           cd micropython/ports/rp2
-          # 徹底清除先前的錯誤快取
+          # 先移除 build 目錄確保從零開始
           rm -rf build-RPI_PICO_W
           make BOARD=RPI_PICO_W USER_C_MODULES=${{ github.workspace }}/custom_mod
           
