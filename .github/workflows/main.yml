@@ -28,29 +28,29 @@ jobs:
       - name: Build mpy-cross
         run: make -C micropython/mpy-cross
 
-      - name: Build Pico W Firmware
+      - name: Locate and Build Pico W Firmware
         run: |
-          # 1. 取得絕對路徑
-          BP32_DIR="${{ github.workspace }}/bluepad32/src/main/api/micropython"
-          echo "🎯 Bluepad32 Module Directory: $BP32_DIR"
+          # 1. 暴力搜尋 micropython.cmake 的真實路徑
+          echo "🔍 正在搜尋 micropython.cmake..."
+          CMAKE_PATH=$(find ${{ github.workspace }}/bluepad32 -name "micropython.cmake" | head -n 1)
           
-          # 2. 驗證該目錄下是否有必要的編譯文件
-          if [ ! -f "$BP32_DIR/micropython.cmake" ]; then
-            echo "❌ Error: micropython.cmake not found in $BP32_DIR"
+          if [ -z "$CMAKE_PATH" ]; then
+            echo "❌ 錯誤：在整個 bluepad32 倉庫中都找不到 micropython.cmake！"
+            echo "目前 bluepad32 目錄結構如下："
+            ls -R ${{ github.workspace }}/bluepad32
             exit 1
           fi
 
+          # 取得該檔案所在的資料夾路徑
+          BP32_MOD_DIR=$(dirname "$CMAKE_PATH")
+          echo "✅ 成功鎖定模組目錄：$BP32_MOD_DIR"
+
+          # 2. 進入編譯目錄
           cd micropython/ports/rp2
           
-          # 3. 核心修正：使用 cmake 指令明確注入模組，然後再進行 make
-          # 這是確保 C 模組被正確連結的最穩健方法
-          export USER_C_MODULES=$BP32_DIR
-          
-          # 先清理舊的 build，確保全新編譯
-          rm -rf build-RPI_PICO_W
-          
-          # 執行編譯
-          make BOARD=RPI_PICO_W USER_C_MODULES=$USER_C_MODULES
+          # 3. 執行編譯
+          # 注意：USER_C_MODULES 需要指向該目錄
+          make BOARD=RPI_PICO_W USER_C_MODULES="$BP32_MOD_DIR"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
